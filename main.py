@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import User
 from schemas import UserCreate, UserLogin, Token
-from auth import hash_password, verify_password, create_access_token
+from auth import hash_password, verify_password, create_access_token, get_current_user
 
 app = FastAPI()
 
@@ -34,4 +34,9 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 
     access_token = create_access_token({"sub": db_user.email})
     return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/me")
+def read_current_user(current_user: User = Depends(get_current_user)):
+    return {"email": current_user.email, "id": current_user.id}
+
     
