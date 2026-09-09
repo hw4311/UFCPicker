@@ -22,6 +22,11 @@ class FightCreate(BaseModel):
     fighter_a: str
     fighter_b: str
 
+class PickCreate(BaseModel):
+    fight_id: int
+    picked_winner: str
+    
+
 
 
 

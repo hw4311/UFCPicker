@@ -1,9 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from datetime import datetime, timezone
 
 from database import get_db
-from models import User, Event, Fight
-from schemas import UserCreate, UserLogin, Token, EventCreate, FightCreate
+from models import User, Event, Fight, Pick
+from schemas import UserCreate, UserLogin, Token, EventCreate, FightCreate, PickCreate
 from auth import hash_password, verify_password, create_access_token, get_current_user
 
 app = FastAPI()
@@ -62,6 +64,31 @@ def create_fight(fight: FightCreate, db: Session = Depends(get_db), current_user
     db.commit()
     db.refresh(new_fight)
     return new_fight
+
+@app.post("/picks")
+def submit_pick(pick: PickCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    fight = db.query(Fight).filter(Fight.id == pick.fight_id).first()
+    if fight is None:
+        raise HTTPException(status_code=404, detail="Fight has not been found")
+
+    if datetime.now(timezone.utc) >= fight.event.lock_time:
+        raise HTTPException(status_code=403, detail="Picks are now locked for this event")
+
+    new_pick = Pick(
+        user_id=current_user.id,
+        fight_id=pick.fight_id,
+        picked_winner=pick.picked_winner,
+    )
+    db.add(new_pick)
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="You have already picked for this fight")
+
+    db.refresh(new_pick)
+    return new_pick
 
 
     
