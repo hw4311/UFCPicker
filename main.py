@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timezone
+from pydantic import BaseModel
 
 from database import get_db
 from models import User, Event, Fight, Pick
@@ -89,6 +90,41 @@ def submit_pick(pick: PickCreate, db: Session = Depends(get_db), current_user: U
 
     db.refresh(new_pick)
     return new_pick
+
+class FightResult(BaseModel):
+    winner: str
+
+@app.patch("/fights/{fight_id}/result")
+def set_fight_result(fight_id: int, result: FightResult, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    fight = db.query(Fight).filter(Fight.id == fight_id).first()
+    if fight is None:
+        raise HTTPException(status_code=404, detail="Fight has not been found")
+
+    fight.winner = result.winner
+    db.commit()
+    db.refresh(fight)
+    return fight
+
+@app.get("/fights/{fight_id}/results")
+def get_fight_results(fight_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    fight = db.query(Fight).filter(Fight.id == fight_id).first()
+    if fight is None:
+        raise HTTPException(status_code=404, detail="Fight has not been found")
+
+    if fight.winner is None:
+        raise HTTPException(status_code=400, detail="This fight has no result yet")
+
+    results = []
+    for pick in fight.picks:
+        results.append({
+            "user_id": pick.user_id,
+            "picked_winner": pick.picked_winner,
+            "correct": pick.picked_winner == fight.winner,
+        })
+
+    return {"fight_id": fight.id, "winner": fight.winner, "results": results}
+    
+                     
 
 
     
